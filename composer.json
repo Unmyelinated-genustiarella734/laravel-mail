@@ -1,0 +1,75 @@
+{
+    "name": "jeffersongoncalves/laravel-mail",
+    "description": "Complete email management for Laravel: logging, database templates with translation, delivery tracking via webhooks (SES, SendGrid, Postmark, Mailgun, Resend), preview, resend, and analytics.",
+    "keywords": [
+        "jeffersongoncalves",
+        "laravel",
+        "laravel-mail",
+        "email",
+        "mail-log",
+        "mail-template",
+        "mail-tracking",
+        "webhook",
+        "ses",
+        "sendgrid",
+        "postmark",
+        "mailgun",
+        "resend"
+    ],
+    "homepage": "https://github.com/jeffersongoncalves/laravel-mail",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Jefferson Gonçalves",
+            "email": "gerson.simao.92@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/contracts": "^11.0|^12.0|^13.0",
+        "illuminate/database": "^11.0|^12.0|^13.0",
+        "illuminate/mail": "^11.0|^12.0|^13.0",
+        "illuminate/support": "^11.0|^12.0|^13.0",
+        "spatie/laravel-package-tools": "^1.16"
+    },
+    "require-dev": {
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.24",
+        "orchestra/testbench": "^9.0|^10.0|^11.0",
+        "pestphp/pest": "^3.7.4",
+        "pestphp/pest-plugin-laravel": "^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "JeffersonGoncalves\\LaravelMail\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "JeffersonGoncalves\\LaravelMail\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "post-autoload-dump": "@php ./vendor/bin/testbench package:discover --ansi",
+        "analyse": "vendor/bin/phpstan analyse",
+        "test": "vendor/bin/pest",
+        "format": "vendor/bin/pint"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "phpstan/extension-installer": true
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "JeffersonGoncalves\\LaravelMail\\LaravelMailServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
