@@ -6,7 +6,7 @@ use JeffersonGoncalves\LaravelMail\Models\MailLog;
 
 it('resends an email from mail log', function () {
     $log = MailLog::create([
-        'mailer' => 'smtp',
+        'mailer' => 'log',
         'subject' => 'Test Resend',
         'from' => [['email' => 'sender@example.com', 'name' => 'Sender']],
         'to' => [['email' => 'recipient@example.com', 'name' => 'Recipient']],
