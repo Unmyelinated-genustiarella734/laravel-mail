@@ -24,7 +24,7 @@ use JeffersonGoncalves\LaravelMail\Enums\MailStatus;
  * @property string|null $html_body
  * @property string|null $text_body
  * @property array<string, string>|null $headers
- * @property array<int, array{filename: string|null, content_type: string|null, size: int|null}>|null $attachments
+ * @property array<int, array<string, mixed>>|null $attachments
  * @property array<string, mixed>|null $metadata
  * @property MailStatus $status
  * @property string|null $provider_message_id

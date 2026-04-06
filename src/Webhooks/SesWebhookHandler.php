@@ -94,6 +94,7 @@ class SesWebhookHandler extends AbstractWebhookHandler
             recipient: $recipient,
             bounceType: $bounceType,
             occurredAt: $occurredAt,
+            providerEventId: $payload['MessageId'] ?? null,
         );
     }
 

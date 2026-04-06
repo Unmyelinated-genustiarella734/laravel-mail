@@ -17,7 +17,8 @@ it('can create a mail template', function () {
 
     expect($template)->toBeInstanceOf(MailTemplate::class)
         ->and($template->key)->toBe('welcome')
-        ->and($template->subject)->toBeArray()
+        ->and($template->getTranslations('subject'))->toBeArray()
+        ->and($template->getTranslations('subject'))->toHaveKeys(['en', 'pt_BR'])
         ->and($template->is_active)->toBeTrue();
 });
 

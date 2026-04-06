@@ -4,6 +4,7 @@ namespace JeffersonGoncalves\LaravelMail\Actions;
 
 use Illuminate\Support\Facades\Blade;
 use JeffersonGoncalves\LaravelMail\Models\MailTemplate;
+use TijsVerkoyen\CssToInlineStyles\CssToInlineStyles;
 
 class PreviewTemplateAction
 {
@@ -22,6 +23,10 @@ class PreviewTemplateAction
         $layout = $template->layout ?? config('laravel-mail.templates.default_layout');
         if ($layout) {
             $html = Blade::render($layout, array_merge($mergedData, ['slot' => $html]));
+        }
+
+        if (config('laravel-mail.templates.inline_css', true)) {
+            $html = (new CssToInlineStyles)->convert($html);
         }
 
         $text = null;

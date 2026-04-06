@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\URL;
 use JeffersonGoncalves\LaravelMail\Observers\MailTemplateObserver;
+use Spatie\Translatable\HasTranslations;
 
 /**
  * @property string $id
@@ -32,7 +33,10 @@ use JeffersonGoncalves\LaravelMail\Observers\MailTemplateObserver;
 #[ObservedBy(MailTemplateObserver::class)]
 class MailTemplate extends Model
 {
-    use HasUuids;
+    use HasTranslations, HasUuids;
+
+    /** @var array<int, string> */
+    public array $translatable = ['subject', 'html_body', 'text_body'];
 
     protected $fillable = [
         'key',
@@ -50,9 +54,6 @@ class MailTemplate extends Model
     protected function casts(): array
     {
         return [
-            'subject' => 'array',
-            'html_body' => 'array',
-            'text_body' => 'array',
             'variables' => 'array',
             'is_active' => 'boolean',
         ];
@@ -99,22 +100,33 @@ class MailTemplate extends Model
 
     public function getSubjectForLocale(?string $locale = null): string
     {
-        $locale = $locale ?? app()->getLocale();
-
-        return $this->subject[$locale] ?? $this->subject[array_key_first($this->subject)] ?? '';
+        return $this->getTranslationWithFallback('subject', $locale);
     }
 
     public function getHtmlBodyForLocale(?string $locale = null): string
     {
-        $locale = $locale ?? app()->getLocale();
-
-        return $this->html_body[$locale] ?? $this->html_body[array_key_first($this->html_body)] ?? '';
+        return $this->getTranslationWithFallback('html_body', $locale);
     }
 
     public function getTextBodyForLocale(?string $locale = null): string
     {
-        $locale = $locale ?? app()->getLocale();
+        return $this->getTranslationWithFallback('text_body', $locale);
+    }
 
-        return $this->text_body[$locale] ?? $this->text_body[array_key_first($this->text_body)] ?? '';
+    protected function getTranslationWithFallback(string $key, ?string $locale = null): string
+    {
+        $locale = $locale ?? app()->getLocale();
+        $translations = $this->getTranslations($key);
+
+        if (isset($translations[$locale])) {
+            return $translations[$locale];
+        }
+
+        $fallback = config('app.fallback_locale', 'en');
+        if (isset($translations[$fallback])) {
+            return $translations[$fallback];
+        }
+
+        return ! empty($translations) ? (string) reset($translations) : '';
     }
 }

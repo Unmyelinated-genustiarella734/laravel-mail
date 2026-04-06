@@ -38,9 +38,9 @@ class MailTemplateObserver
 
         $versionModelClass::create([
             'mail_template_id' => $template->id,
-            'subject' => $template->subject,
-            'html_body' => $template->html_body,
-            'text_body' => $template->text_body,
+            'subject' => $template->getTranslations('subject'),
+            'html_body' => $template->getTranslations('html_body'),
+            'text_body' => $template->getTranslations('text_body'),
             'change_note' => $changeNote,
             'version_number' => $latestVersion + 1,
             'created_at' => now(),

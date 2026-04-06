@@ -14,6 +14,7 @@ use JeffersonGoncalves\LaravelMail\Enums\TrackingProvider;
  * @property string $mail_log_id
  * @property TrackingEventType $type
  * @property TrackingProvider $provider
+ * @property string|null $provider_event_id
  * @property array<string, mixed>|null $payload
  * @property string|null $recipient
  * @property string|null $url
@@ -32,6 +33,7 @@ class MailTrackingEvent extends Model
         'mail_log_id',
         'type',
         'provider',
+        'provider_event_id',
         'payload',
         'recipient',
         'url',

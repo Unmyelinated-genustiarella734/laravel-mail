@@ -6,8 +6,11 @@ use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Mail\Events\MessageSent;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
+use JeffersonGoncalves\LaravelMail\Commands\ListTemplatesCommand;
+use JeffersonGoncalves\LaravelMail\Commands\MailStatsCommand;
 use JeffersonGoncalves\LaravelMail\Commands\PruneMailLogsCommand;
 use JeffersonGoncalves\LaravelMail\Commands\RetryFailedMailCommand;
+use JeffersonGoncalves\LaravelMail\Commands\SendTestMailCommand;
 use JeffersonGoncalves\LaravelMail\Commands\UnsuppressCommand;
 use JeffersonGoncalves\LaravelMail\Events\MailBounced;
 use JeffersonGoncalves\LaravelMail\Events\MailComplained;
@@ -30,6 +33,9 @@ class LaravelMailServiceProvider extends PackageServiceProvider
                 PruneMailLogsCommand::class,
                 UnsuppressCommand::class,
                 RetryFailedMailCommand::class,
+                SendTestMailCommand::class,
+                ListTemplatesCommand::class,
+                MailStatsCommand::class,
             ])
             ->hasMigrations([
                 'create_mail_logs_table',

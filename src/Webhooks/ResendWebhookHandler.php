@@ -100,6 +100,7 @@ class ResendWebhookHandler extends AbstractWebhookHandler
             url: $data['click']['link'] ?? null,
             bounceType: $bounceType,
             occurredAt: $occurredAt,
+            providerEventId: $request->header('svix-id'),
         );
     }
 

@@ -67,6 +67,7 @@ class PostmarkWebhookHandler extends AbstractWebhookHandler
             url: $payload['OriginalLink'] ?? null,
             bounceType: $bounceType,
             occurredAt: $occurredAt,
+            providerEventId: "{$messageId}-{$recordType}",
         );
     }
 

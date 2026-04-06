@@ -83,6 +83,7 @@ class SendGridWebhookHandler extends AbstractWebhookHandler
             url: $event['url'] ?? null,
             bounceType: $event['type'] ?? null,
             occurredAt: $occurredAt,
+            providerEventId: $event['sg_event_id'] ?? null,
         );
     }
 

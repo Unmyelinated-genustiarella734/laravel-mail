@@ -3,6 +3,8 @@
 namespace JeffersonGoncalves\LaravelMail\Listeners;
 
 use Illuminate\Mail\Events\MessageSent;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use JeffersonGoncalves\LaravelMail\Enums\MailStatus;
 use JeffersonGoncalves\LaravelMail\Models\MailLog;
 use Symfony\Component\Mime\Address;
@@ -18,6 +20,7 @@ class LogSentMessage
         $modelClass = config('laravel-mail.models.mail_log', MailLog::class);
 
         $id = $this->extractHeaderValue($message, 'X-LaravelMail-ID');
+        $templateId = $this->extractHeaderValue($message, 'X-LaravelMail-TemplateID');
 
         $data = [
             'mailer' => $event->data['__laravel_notification_mailer'] ?? config('mail.default'),
@@ -66,6 +69,10 @@ class LogSentMessage
             $data['id'] = $id;
         }
 
+        if ($templateId) {
+            $data['mail_template_id'] = $templateId;
+        }
+
         $modelClass::create($data);
     }
 
@@ -106,7 +113,7 @@ class LogSentMessage
     }
 
     /**
-     * @return array<int, array{filename: string|null, content_type: string|null, size: int|null}>|null
+     * @return array<int, array<string, mixed>>|null
      */
     protected function extractAttachments(Email $message): ?array
     {
@@ -116,14 +123,28 @@ class LogSentMessage
             return null;
         }
 
-        return array_map(function ($attachment) {
-            $headers = $attachment->getPreparedHeaders();
+        $storeFiles = config('laravel-mail.logging.store_attachment_files', false);
+        $disk = config('laravel-mail.logging.attachments_disk', 'local');
+        $basePath = config('laravel-mail.logging.attachments_path', 'mail-attachments');
 
-            return [
-                'filename' => $headers->getHeaderParameter('content-disposition', 'filename'),
+        return array_map(function ($attachment) use ($storeFiles, $disk, $basePath) {
+            $headers = $attachment->getPreparedHeaders();
+            $filename = $headers->getHeaderParameter('content-disposition', 'filename');
+
+            $data = [
+                'filename' => $filename,
                 'content_type' => $headers->get('content-type')?->getBodyAsString(),
                 'size' => strlen($attachment->getBody()),
             ];
+
+            if ($storeFiles) {
+                $storedPath = $basePath.'/'.date('Y/m/d').'/'.Str::uuid().'_'.($filename ?? 'attachment');
+                Storage::disk($disk)->put($storedPath, $attachment->getBody());
+                $data['path'] = $storedPath;
+                $data['disk'] = $disk;
+            }
+
+            return $data;
         }, $attachments);
     }
 

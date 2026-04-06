@@ -11,25 +11,30 @@
 [![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/jeffersongoncalves/laravel-mail/fix-php-code-style-issues.yml?branch=master&label=code%20style&style=flat-square)](https://github.com/jeffersongoncalves/laravel-mail/actions?query=workflow%3A"Fix+PHP+code+styling"+branch%3Amaster)
 [![Total Downloads](https://img.shields.io/packagist/dt/jeffersongoncalves/laravel-mail.svg?style=flat-square)](https://packagist.org/packages/jeffersongoncalves/laravel-mail)
 
-Complete email management for Laravel: logging, database templates with translation, delivery tracking via webhooks (SES, SendGrid, Postmark, Mailgun, Resend), suppression list, browser preview, statistics, notification channel, retry, and analytics.
+Complete email management for Laravel: logging, database templates with translation (spatie/laravel-translatable), delivery tracking via webhooks (SES, SendGrid, Postmark, Mailgun, Resend), suppression list, inline CSS, List-Unsubscribe headers, browser preview, statistics, notification channel, retry, attachment storage, and analytics.
 
 ## Features
 
 - **Email Logging** — Automatically logs all outgoing emails via `MessageSent` event
-- **Database Templates** — Store email templates with Blade rendering and multi-locale translation
+- **Database Templates** — Store email templates with Blade rendering and multi-locale translation via `spatie/laravel-translatable`
 - **Template Versioning** — Automatic version history on every content change
 - **Delivery Tracking** — Webhook handlers for 5 providers (SES, SendGrid, Postmark, Mailgun, Resend) with HMAC validation
+- **Webhook Idempotency** — Duplicate webhook deliveries are detected and ignored via `provider_event_id`
 - **Tracking Events** — Laravel events dispatched on delivery, bounce, complaint, open, click, and deferral
 - **Suppression List** — Auto-suppress hard bounces and complaints, block sending to suppressed addresses
+- **Inline CSS** — Automatic CSS inlining for email client compatibility (Outlook, Gmail, etc.)
+- **List-Unsubscribe Headers** — Gmail/Yahoo compliance with `List-Unsubscribe` and `List-Unsubscribe-Post` headers
 - **Browser Preview** — View sent emails and templates in the browser via signed URLs
 - **Statistics** — Query helpers for sent, delivered, bounced, opened, clicked counts and daily aggregations
 - **Notification Channel** — Send database templates via Laravel Notifications
 - **Retry Failed Emails** — Retry failed or soft-bounced emails with max attempts control
 - **Resend Emails** — Resend any previously sent email from the log
-- **Pruning** — Artisan command to clean up old mail logs
+- **Attachment File Storage** — Optionally store email attachment files to disk (S3, local, etc.)
+- **Pruning** — Artisan command to clean up old mail logs with per-status retention policies
 - **Polymorphic Association** — Associate mail logs with any model via `HasMailLogs` trait
 - **Multi-Tenant** — Optional tenant scoping for all tables
 - **Customizable** — Override models, table names, and database connection
+- **CLI Commands** — `mail:send-test`, `mail:templates`, `mail:stats`, `mail:prune`, `mail:retry`, `mail:unsuppress`
 
 ## Installation
 
@@ -61,6 +66,8 @@ Mail::to('user@example.com')->send(new WelcomeMail($user));
 
 Each log entry captures: mailer, subject, from/to/cc/bcc/reply-to, HTML body, text body, headers, attachments metadata, and provider message ID.
 
+When using `TemplateMailable`, the `mail_template_id` is automatically associated with the log entry.
+
 ### Disable Logging
 
 ```env
@@ -76,7 +83,7 @@ LARAVEL_MAIL_STORE_TEXT=true
 
 ## Database Templates
 
-Create email templates in the database with multi-locale support and Blade rendering.
+Create email templates in the database with multi-locale support via `spatie/laravel-translatable` and Blade rendering.
 
 ### Creating a Template
 
@@ -136,6 +143,26 @@ class WelcomeEmail extends TemplateMailable
 }
 ```
 
+### Translation API
+
+The `MailTemplate` model uses `spatie/laravel-translatable`. You can access translations via:
+
+```php
+// Get for current locale
+$template->subject; // Returns string for app()->getLocale()
+
+// Get for specific locale
+$template->getSubjectForLocale('pt_BR');
+$template->getHtmlBodyForLocale('en');
+$template->getTextBodyForLocale('es');
+
+// Get all translations
+$template->getTranslations('subject'); // ['en' => '...', 'pt_BR' => '...']
+
+// Set translation
+$template->setTranslation('subject', 'fr', 'Bienvenue !');
+```
+
 ### Template Versioning
 
 Every content change (subject, html_body, text_body) automatically creates a version snapshot:
@@ -161,6 +188,7 @@ $action = new PreviewTemplateAction();
 $preview = $action->execute($template, ['name' => 'Alice'], 'en');
 
 // Returns: ['subject' => '...', 'html' => '...', 'text' => '...']
+// HTML is automatically CSS-inlined when templates.inline_css is true
 ```
 
 ### Layouts
@@ -176,6 +204,35 @@ Wrap template content in a shared layout:
 // Or per template
 $template->update(['layout' => '<html><body>{!! $slot !!}</body></html>']);
 ```
+
+## Inline CSS
+
+Automatically inlines CSS styles for email client compatibility (Outlook, Gmail, Yahoo, etc.). Uses `tijsverkoyen/css-to-inline-styles` which is already included with Laravel.
+
+```env
+LARAVEL_MAIL_INLINE_CSS=true  # Enabled by default
+```
+
+When enabled, any `<style>` tags in your template HTML will be converted to inline `style` attributes on the corresponding elements. This applies to both `TemplateMailable` sending and `PreviewTemplateAction` rendering.
+
+## List-Unsubscribe Headers
+
+Add `List-Unsubscribe` and `List-Unsubscribe-Post` headers for Gmail/Yahoo compliance (required since 2024 for bulk senders).
+
+```php
+// config/laravel-mail.php
+'templates' => [
+    'unsubscribe' => [
+        'enabled' => true,
+        'url' => 'https://yourapp.com/unsubscribe/{email}', // {email} is replaced with recipient
+        'mailto' => 'unsubscribe@yourapp.com',
+    ],
+],
+```
+
+When enabled, all emails sent via `TemplateMailable` will include:
+- `List-Unsubscribe: <https://yourapp.com/unsubscribe/user%40example.com>, <mailto:unsubscribe@yourapp.com?subject=unsubscribe>`
+- `List-Unsubscribe-Post: List-Unsubscribe=One-Click`
 
 ## Delivery Tracking via Webhooks
 
@@ -243,6 +300,10 @@ Configure these URLs in your email provider's dashboard:
 | `opened` | Email was opened | No | `MailOpened` |
 | `clicked` | Link was clicked | No | `MailClicked` |
 | `deferred` | Delivery was delayed | No | `MailDeferred` |
+
+### Webhook Idempotency
+
+Duplicate webhook deliveries from providers are automatically detected and ignored. Each webhook handler extracts a unique `provider_event_id` from the payload (e.g., SNS `MessageId` for SES, `sg_event_id` for SendGrid, `svix-id` for Resend). If an event with the same ID already exists, it is skipped — no duplicate tracking events, no duplicate Laravel events dispatched.
 
 ### Listening to Tracking Events
 
@@ -451,6 +512,26 @@ $action = new ResendMailAction();
 $action->execute($mailLog);
 ```
 
+## Attachment File Storage
+
+Optionally store email attachment files to disk for later retrieval:
+
+```env
+LARAVEL_MAIL_STORE_ATTACHMENT_FILES=true
+LARAVEL_MAIL_ATTACHMENTS_DISK=local   # or s3, etc.
+```
+
+```php
+// config/laravel-mail.php
+'logging' => [
+    'store_attachment_files' => true,
+    'attachments_disk' => 'local',
+    'attachments_path' => 'mail-attachments',
+],
+```
+
+When enabled, each attachment is stored to the configured disk and the `path` and `disk` are added to the attachment metadata in the mail log. When pruning, stored files are automatically cleaned up.
+
 ## Pruning Old Logs
 
 Clean up old mail logs:
@@ -460,10 +541,64 @@ php artisan mail:prune            # Prune logs older than 30 days (default)
 php artisan mail:prune --days=7   # Prune logs older than 7 days
 ```
 
+### Per-Status Retention Policies
+
+Keep different statuses for different durations:
+
+```php
+// config/laravel-mail.php
+'prune' => [
+    'enabled' => true,
+    'older_than_days' => 30, // default fallback
+    'policies' => [
+        'delivered' => 30,   // delete delivered after 30 days
+        'bounced' => 90,     // keep bounced for 90 days
+        'complained' => 365, // keep complaints for 1 year
+    ],
+],
+```
+
 Schedule it:
 
 ```php
 Schedule::command('mail:prune')->daily();
+```
+
+## CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `mail:prune` | Delete old mail logs (supports `--days` option) |
+| `mail:retry` | Retry failed/bounced emails (supports `--status`, `--hours`, `--limit`) |
+| `mail:unsuppress {email}` | Remove an email from the suppression list |
+| `mail:send-test {key} {email}` | Send a test email using a template (supports `--locale`, `--data`) |
+| `mail:templates` | List all mail templates in a table |
+| `mail:stats` | Show email statistics (supports `--days`) |
+
+### Send Test Email
+
+```bash
+# Send with example data from template variables
+php artisan mail:send-test welcome user@example.com
+
+# With specific locale
+php artisan mail:send-test welcome user@example.com --locale=pt_BR
+
+# With custom data
+php artisan mail:send-test welcome user@example.com --data='{"name":"Alice"}'
+```
+
+### View Statistics
+
+```bash
+php artisan mail:stats            # Last 7 days (default)
+php artisan mail:stats --days=30  # Last 30 days
+```
+
+### List Templates
+
+```bash
+php artisan mail:templates
 ```
 
 ## Polymorphic Association

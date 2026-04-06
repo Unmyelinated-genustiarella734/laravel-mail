@@ -26,6 +26,9 @@ abstract class AbstractWebhookHandler implements WebhookHandler
         return $modelClass::where('provider_message_id', $providerMessageId)->first();
     }
 
+    /**
+     * @param  array<string, mixed>  $payload
+     */
     protected function recordEvent(
         MailLog $mailLog,
         TrackingEventType $type,
@@ -34,13 +37,24 @@ abstract class AbstractWebhookHandler implements WebhookHandler
         ?string $url = null,
         ?string $bounceType = null,
         ?\DateTimeInterface $occurredAt = null,
+        ?string $providerEventId = null,
     ): MailTrackingEvent {
         $modelClass = config('laravel-mail.models.mail_tracking_event', MailTrackingEvent::class);
 
-        $event = $modelClass::create([
+        $uniqueAttributes = $providerEventId
+            ? ['provider_event_id' => $providerEventId]
+            : [
+                'mail_log_id' => $mailLog->id,
+                'type' => $type,
+                'provider' => $this->provider(),
+                'occurred_at' => $occurredAt,
+            ];
+
+        $event = $modelClass::firstOrCreate($uniqueAttributes, [
             'mail_log_id' => $mailLog->id,
             'type' => $type,
             'provider' => $this->provider(),
+            'provider_event_id' => $providerEventId,
             'payload' => $payload,
             'recipient' => $recipient,
             'url' => $url,
@@ -48,6 +62,10 @@ abstract class AbstractWebhookHandler implements WebhookHandler
             'occurred_at' => $occurredAt,
             'created_at' => now(),
         ]);
+
+        if (! $event->wasRecentlyCreated) {
+            return $event;
+        }
 
         $this->updateMailLogStatus($mailLog, $type);
         $this->dispatchTrackingEvent($mailLog, $event, $type);

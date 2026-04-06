@@ -84,6 +84,7 @@ class MailgunWebhookHandler extends AbstractWebhookHandler
             url: $eventData['url'] ?? null,
             bounceType: $bounceType,
             occurredAt: $occurredAt,
+            providerEventId: $eventData['id'] ?? null,
         );
     }
 

@@ -10,6 +10,8 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\HtmlString;
 use JeffersonGoncalves\LaravelMail\Models\MailTemplate;
+use Symfony\Component\Mime\Email;
+use TijsVerkoyen\CssToInlineStyles\CssToInlineStyles;
 
 abstract class TemplateMailable extends Mailable
 {
@@ -51,7 +53,17 @@ abstract class TemplateMailable extends Mailable
             $htmlBody = $this->wrapInLayout($layout, $htmlBody, $data);
         }
 
+        if (config('laravel-mail.templates.inline_css', true)) {
+            $htmlBody = (new CssToInlineStyles)->convert($htmlBody);
+        }
+
         $this->html($htmlBody);
+
+        $this->withSymfonyMessage(function (Email $message) use ($template) {
+            $message->getHeaders()->addTextHeader('X-LaravelMail-TemplateID', $template->id);
+
+            $this->addUnsubscribeHeaders($message);
+        });
 
         $textBody = $template->getTextBodyForLocale();
         if ($textBody) {
@@ -119,5 +131,36 @@ abstract class TemplateMailable extends Mailable
     public function getMailTemplate(): ?MailTemplate
     {
         return $this->mailTemplate;
+    }
+
+    protected function addUnsubscribeHeaders(Email $message): void
+    {
+        if (! config('laravel-mail.templates.unsubscribe.enabled', false)) {
+            return;
+        }
+
+        $values = [];
+        $url = config('laravel-mail.templates.unsubscribe.url');
+        $mailto = config('laravel-mail.templates.unsubscribe.mailto');
+
+        $recipients = $message->getTo();
+        $recipientEmail = ! empty($recipients) ? $recipients[0]->getAddress() : '';
+
+        if ($url) {
+            $resolvedUrl = str_replace('{email}', urlencode($recipientEmail), $url);
+            $values[] = "<{$resolvedUrl}>";
+        }
+
+        if ($mailto) {
+            $values[] = "<mailto:{$mailto}?subject=unsubscribe>";
+        }
+
+        if (! empty($values)) {
+            $message->getHeaders()->addTextHeader('List-Unsubscribe', implode(', ', $values));
+
+            if ($url) {
+                $message->getHeaders()->addTextHeader('List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
+            }
+        }
     }
 }

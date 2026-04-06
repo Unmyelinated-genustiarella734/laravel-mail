@@ -34,9 +34,17 @@ return [
 
         /*
         | Store attachment metadata (name, size, content-type).
-        | The actual attachment content is NOT stored.
+        | The actual attachment content is NOT stored unless store_attachment_files is enabled.
         */
         'store_attachments' => true,
+
+        /*
+        | Store actual attachment files to disk.
+        | When enabled, files are saved to the configured disk and path.
+        */
+        'store_attachment_files' => env('LARAVEL_MAIL_STORE_ATTACHMENT_FILES', false),
+        'attachments_disk' => env('LARAVEL_MAIL_ATTACHMENTS_DISK', 'local'),
+        'attachments_path' => 'mail-attachments',
     ],
 
     /*
@@ -52,6 +60,12 @@ return [
     'prune' => [
         'enabled' => true,
         'older_than_days' => 30,
+
+        /*
+        | Per-status retention policies (overrides older_than_days when set).
+        | Example: ['delivered' => 30, 'bounced' => 90, 'complained' => 365]
+        */
+        'policies' => null,
     ],
 
     /*
@@ -128,6 +142,22 @@ return [
         | Set to null for no layout wrapping.
         */
         'default_layout' => null,
+
+        /*
+        | Inline CSS styles in template HTML for email client compatibility.
+        | Uses tijsverkoyen/css-to-inline-styles (included with Laravel).
+        */
+        'inline_css' => env('LARAVEL_MAIL_INLINE_CSS', true),
+
+        /*
+        | List-Unsubscribe headers for Gmail/Yahoo compliance.
+        | Use {email} placeholder in URL for recipient email substitution.
+        */
+        'unsubscribe' => [
+            'enabled' => false,
+            'url' => null,
+            'mailto' => null,
+        ],
     ],
 
     /*
