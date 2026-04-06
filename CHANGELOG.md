@@ -2,6 +2,34 @@
 
 All notable changes to `laravel-mail` will be documented in this file.
 
+## 1.2.0 - 2026-04-05
+
+### What's New
+
+#### New Features
+
+- **Webhook Idempotency** — Duplicate webhook deliveries are detected and ignored via `provider_event_id`
+- **MailLog Template ID Association** — Emails sent via `TemplateMailable` automatically link to the template
+- **Inline CSS** — Automatic CSS inlining for email client compatibility (Outlook, Gmail, Yahoo)
+- **List-Unsubscribe Headers** — Gmail/Yahoo compliance with `List-Unsubscribe` and `List-Unsubscribe-Post`
+- **Attachment File Storage** — Optionally store email attachment files to disk (S3, local, etc.)
+- **Per-Status Prune Policies** — Different retention periods per status (e.g. delivered=30d, bounced=90d)
+- **`mail:send-test` Command** — Send test emails using templates via CLI
+- **`mail:templates` Command** — List all templates in a table
+- **`mail:stats` Command** — Show email statistics in the terminal
+- **spatie/laravel-translatable Integration** — `MailTemplate` now uses `HasTranslations` trait
+
+#### Bug Fixes
+
+- Removed empty `VerifyWebhookSignature` middleware (validation already in handlers)
+- Webhook/preview controllers return proper 503/404 when features are disabled
+
+#### Tests
+
+- 148 tests, 346 assertions — all passing
+- PHPStan level 5: 0 errors
+- New test files for all new features
+
 ## 1.1.0 - 2026-04-05
 
 ### What's New
