@@ -11,14 +11,20 @@
 [![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/jeffersongoncalves/laravel-mail/fix-php-code-style-issues.yml?branch=master&label=code%20style&style=flat-square)](https://github.com/jeffersongoncalves/laravel-mail/actions?query=workflow%3A"Fix+PHP+code+styling"+branch%3Amaster)
 [![Total Downloads](https://img.shields.io/packagist/dt/jeffersongoncalves/laravel-mail.svg?style=flat-square)](https://packagist.org/packages/jeffersongoncalves/laravel-mail)
 
-Complete email management for Laravel: automatic logging, database templates with translation support, delivery tracking via webhooks (SES, SendGrid, Postmark, Mailgun, Resend), preview, resend, and analytics.
+Complete email management for Laravel: logging, database templates with translation, delivery tracking via webhooks (SES, SendGrid, Postmark, Mailgun, Resend), suppression list, browser preview, statistics, notification channel, retry, and analytics.
 
 ## Features
 
 - **Email Logging** — Automatically logs all outgoing emails via `MessageSent` event
-- **Database Templates** — Store email templates in the database with Blade rendering and multi-locale translation
+- **Database Templates** — Store email templates with Blade rendering and multi-locale translation
 - **Template Versioning** — Automatic version history on every content change
 - **Delivery Tracking** — Webhook handlers for 5 providers (SES, SendGrid, Postmark, Mailgun, Resend) with HMAC validation
+- **Tracking Events** — Laravel events dispatched on delivery, bounce, complaint, open, click, and deferral
+- **Suppression List** — Auto-suppress hard bounces and complaints, block sending to suppressed addresses
+- **Browser Preview** — View sent emails and templates in the browser via signed URLs
+- **Statistics** — Query helpers for sent, delivered, bounced, opened, clicked counts and daily aggregations
+- **Notification Channel** — Send database templates via Laravel Notifications
+- **Retry Failed Emails** — Retry failed or soft-bounced emails with max attempts control
 - **Resend Emails** — Resend any previously sent email from the log
 - **Pruning** — Artisan command to clean up old mail logs
 - **Polymorphic Association** — Associate mail logs with any model via `HasMailLogs` trait
@@ -83,7 +89,7 @@ MailTemplate::create([
     'subject' => ['en' => 'Welcome, {{ $name }}!', 'pt_BR' => 'Bem-vindo, {{ $name }}!'],
     'html_body' => [
         'en' => '<h1>Hello {{ $name }}</h1><p>Welcome to our platform.</p>',
-        'pt_BR' => '<h1>Olá {{ $name }}</h1><p>Bem-vindo à nossa plataforma.</p>',
+        'pt_BR' => '<h1>Ola {{ $name }}</h1><p>Bem-vindo a nossa plataforma.</p>',
     ],
     'variables' => [
         ['name' => 'name', 'type' => 'string', 'example' => 'John'],
@@ -115,7 +121,6 @@ class WelcomeEmail extends TemplateMailable
         return ['name' => $this->user->name];
     }
 
-    // Fallback when no template exists in the database
     protected function fallbackSubject(): string
     {
         return 'Welcome!';
@@ -131,13 +136,6 @@ class WelcomeEmail extends TemplateMailable
 }
 ```
 
-The mailable automatically:
-- Fetches the template by key
-- Renders Blade syntax in subject and body
-- Respects the current application locale
-- Falls back to the first available locale when the current one is missing
-- Uses `fallbackSubject()` and `fallbackContent()` when no template exists
-
 ### Template Versioning
 
 Every content change (subject, html_body, text_body) automatically creates a version snapshot:
@@ -152,6 +150,19 @@ $template->update([
 $template->versions; // Collection of MailTemplateVersion
 ```
 
+### Template Preview
+
+Preview a template with example data without sending:
+
+```php
+use JeffersonGoncalves\LaravelMail\Actions\PreviewTemplateAction;
+
+$action = new PreviewTemplateAction();
+$preview = $action->execute($template, ['name' => 'Alice'], 'en');
+
+// Returns: ['subject' => '...', 'html' => '...', 'text' => '...']
+```
+
 ### Layouts
 
 Wrap template content in a shared layout:
@@ -159,11 +170,11 @@ Wrap template content in a shared layout:
 ```php
 // config/laravel-mail.php
 'templates' => [
-    'default_layout' => '<html><body>{{ $slot }}</body></html>',
+    'default_layout' => '<html><body>{!! $slot !!}</body></html>',
 ],
 
 // Or per template
-$template->update(['layout' => '<html><body>{{ $slot }}</body></html>']);
+$template->update(['layout' => '<html><body>{!! $slot !!}</body></html>']);
 ```
 
 ## Delivery Tracking via Webhooks
@@ -224,14 +235,34 @@ Configure these URLs in your email provider's dashboard:
 
 ### Tracked Events
 
-| Event | Description | Updates Status |
-|-------|-------------|----------------|
-| `delivered` | Email successfully delivered | `sent` -> `delivered` |
-| `bounced` | Email bounced (hard/soft) | -> `bounced` |
-| `complained` | Recipient marked as spam | -> `complained` |
-| `opened` | Email was opened | No |
-| `clicked` | Link was clicked | No |
-| `deferred` | Delivery was delayed | No |
+| Event | Description | Updates Status | Laravel Event |
+|-------|-------------|----------------|---------------|
+| `delivered` | Email successfully delivered | `sent` -> `delivered` | `MailDelivered` |
+| `bounced` | Email bounced (hard/soft) | -> `bounced` | `MailBounced` |
+| `complained` | Recipient marked as spam | -> `complained` | `MailComplained` |
+| `opened` | Email was opened | No | `MailOpened` |
+| `clicked` | Link was clicked | No | `MailClicked` |
+| `deferred` | Delivery was delayed | No | `MailDeferred` |
+
+### Listening to Tracking Events
+
+React to delivery events in your application:
+
+```php
+use JeffersonGoncalves\LaravelMail\Events\MailBounced;
+use JeffersonGoncalves\LaravelMail\Events\MailComplained;
+
+// In a listener or EventServiceProvider
+Event::listen(MailBounced::class, function (MailBounced $event) {
+    // $event->mailLog — the MailLog model
+    // $event->trackingEvent — the MailTrackingEvent model
+    Log::warning("Email bounced: {$event->trackingEvent->recipient}");
+});
+
+Event::listen(MailComplained::class, function (MailComplained $event) {
+    // Disable the user's account, send alert, etc.
+});
+```
 
 ### Signature Validation
 
@@ -245,6 +276,170 @@ Each provider uses its own authentication method:
 
 When no signing secret is configured, validation is skipped (useful for development).
 
+## Suppression List
+
+Automatically suppress email addresses that hard bounce or receive spam complaints. Suppressed addresses are blocked from receiving future emails.
+
+### Enable Suppression
+
+```env
+LARAVEL_MAIL_SUPPRESSION_ENABLED=true
+```
+
+```php
+// config/laravel-mail.php
+'suppression' => [
+    'enabled' => true,
+    'auto_suppress_hard_bounces' => true,
+    'auto_suppress_complaints' => true,
+],
+```
+
+When enabled, the package automatically:
+- Adds hard-bounced addresses to the suppression list
+- Adds complained addresses to the suppression list
+- Blocks sending to any suppressed address (cancels the email before it's sent)
+
+### Manual Suppression Management
+
+```php
+use JeffersonGoncalves\LaravelMail\Models\MailSuppression;
+use JeffersonGoncalves\LaravelMail\Enums\SuppressionReason;
+
+// Manually suppress an address
+MailSuppression::create([
+    'email' => 'user@example.com',
+    'reason' => SuppressionReason::Manual,
+    'suppressed_at' => now(),
+]);
+
+// Check if an address is suppressed
+$isSuppressed = MailSuppression::where('email', 'user@example.com')->exists();
+```
+
+### Unsuppress Command
+
+```bash
+php artisan mail:unsuppress user@example.com
+```
+
+## Browser Preview
+
+View sent emails and templates directly in the browser.
+
+### Enable Preview
+
+```env
+LARAVEL_MAIL_PREVIEW_ENABLED=true
+```
+
+```php
+// config/laravel-mail.php
+'preview' => [
+    'enabled' => true,
+    'route_prefix' => 'mail/preview',
+    'route_middleware' => ['web'],
+    'signed_urls' => true, // Require signed URLs for security
+],
+```
+
+### Preview URLs
+
+Access preview URLs via model accessors:
+
+```php
+$mailLog->preview_url;    // GET /mail/preview/mail-log/{id}?signature=...
+$template->preview_url;   // GET /mail/preview/template/{id}?signature=...
+```
+
+When `signed_urls` is enabled, URLs are cryptographically signed and cannot be tampered with. When disabled, plain URLs are generated.
+
+## Statistics
+
+Query email statistics with the `MailStats` facade:
+
+```php
+use JeffersonGoncalves\LaravelMail\Facades\MailStats;
+use Illuminate\Support\Carbon;
+
+$from = Carbon::now()->subDays(30);
+$to = Carbon::now();
+
+MailStats::sent($from, $to);          // int
+MailStats::delivered($from, $to);     // int
+MailStats::bounced($from, $to);       // int
+MailStats::complained($from, $to);    // int
+MailStats::opened($from, $to);        // int (from tracking events)
+MailStats::clicked($from, $to);       // int (from tracking events)
+MailStats::deliveryRate($from, $to);  // float (percentage)
+MailStats::bounceRate($from, $to);    // float (percentage)
+MailStats::dailyStats($from, $to);    // Collection of daily aggregations
+```
+
+## Notification Channel
+
+Send database templates via Laravel Notifications:
+
+```php
+use JeffersonGoncalves\LaravelMail\Channels\TemplateMailChannel;
+use Illuminate\Notifications\Notification;
+
+class WelcomeNotification extends Notification
+{
+    public function via($notifiable): array
+    {
+        return [TemplateMailChannel::class];
+    }
+
+    public function toTemplateMail($notifiable): array
+    {
+        return [
+            'template_key' => 'welcome',
+            'data' => ['name' => $notifiable->name],
+            'locale' => 'en',
+        ];
+    }
+}
+```
+
+## Retry Failed Emails
+
+Retry emails that failed to send or soft-bounced.
+
+### Enable Retry
+
+```php
+// config/laravel-mail.php
+'retry' => [
+    'enabled' => true,
+    'max_attempts' => 3,
+],
+```
+
+### Retry Programmatically
+
+```php
+use JeffersonGoncalves\LaravelMail\Actions\RetryFailedMailAction;
+
+$action = new RetryFailedMailAction();
+$action->execute($failedMailLog); // Returns true on success, false if max attempts reached
+```
+
+### Retry via Command
+
+```bash
+# Retry failed emails from the last 24 hours
+php artisan mail:retry
+
+# Retry soft-bounced emails from the last 48 hours
+php artisan mail:retry --status=bounced --hours=48
+
+# Limit the number of retries
+php artisan mail:retry --limit=50
+```
+
+Hard bounces are automatically skipped when retrying bounced emails.
+
 ## Resend Emails
 
 Resend any previously logged email:
@@ -252,43 +447,28 @@ Resend any previously logged email:
 ```php
 use JeffersonGoncalves\LaravelMail\Actions\ResendMailAction;
 
-$mailLog = MailLog::find($id);
 $action = new ResendMailAction();
 $action->execute($mailLog);
 ```
 
 ## Pruning Old Logs
 
-Clean up old mail logs with the artisan command:
+Clean up old mail logs:
 
 ```bash
-# Prune logs older than 30 days (default)
-php artisan mail:prune
-
-# Prune logs older than 7 days
-php artisan mail:prune --days=7
+php artisan mail:prune            # Prune logs older than 30 days (default)
+php artisan mail:prune --days=7   # Prune logs older than 7 days
 ```
 
-Schedule it in your `routes/console.php`:
+Schedule it:
 
 ```php
-use Illuminate\Support\Facades\Schedule;
-
 Schedule::command('mail:prune')->daily();
-```
-
-### Disable Pruning
-
-```php
-// config/laravel-mail.php
-'prune' => [
-    'enabled' => false,
-],
 ```
 
 ## Polymorphic Association
 
-Associate mail logs with any model using the `HasMailLogs` trait:
+Associate mail logs with any model:
 
 ```php
 use JeffersonGoncalves\LaravelMail\Traits\HasMailLogs;
@@ -298,13 +478,10 @@ class User extends Model
     use HasMailLogs;
 }
 
-// Query mail logs for a user
 $user->mailLogs()->latest()->get();
 ```
 
 ## Multi-Tenancy
-
-Enable tenant scoping for all tables:
 
 ```php
 // config/laravel-mail.php
@@ -314,17 +491,7 @@ Enable tenant scoping for all tables:
 ],
 ```
 
-Pass the tenant ID when sending emails via the `__tenant_id` data key:
-
-```php
-Mail::to('user@example.com')->send(new WelcomeMail($user), [
-    '__tenant_id' => $tenant->id,
-]);
-```
-
 ## Custom Models
-
-Override the default models to add custom behavior:
 
 ```php
 // config/laravel-mail.php
@@ -333,6 +500,7 @@ Override the default models to add custom behavior:
     'mail_template' => \App\Models\MailTemplate::class,
     'mail_template_version' => \App\Models\MailTemplateVersion::class,
     'mail_tracking_event' => \App\Models\MailTrackingEvent::class,
+    'mail_suppression' => \App\Models\MailSuppression::class,
 ],
 ```
 
@@ -341,17 +509,18 @@ Override the default models to add custom behavior:
 ```php
 // config/laravel-mail.php
 'database' => [
-    'connection' => null, // null uses default connection
+    'connection' => null,
     'tables' => [
         'mail_logs' => 'mail_logs',
         'mail_templates' => 'mail_templates',
         'mail_template_versions' => 'mail_template_versions',
         'mail_tracking_events' => 'mail_tracking_events',
+        'mail_suppressions' => 'mail_suppressions',
     ],
 ],
 ```
 
-## Facade
+## Facades
 
 ```php
 use JeffersonGoncalves\LaravelMail\Facades\LaravelMail;
@@ -360,6 +529,14 @@ LaravelMail::isLoggingEnabled();  // bool
 LaravelMail::isTrackingEnabled(); // bool
 LaravelMail::findByProviderMessageId('msg-id-123'); // ?MailLog
 LaravelMail::updateStatus($mailLog, MailStatus::Delivered); // MailLog
+```
+
+```php
+use JeffersonGoncalves\LaravelMail\Facades\MailStats;
+
+MailStats::sent($from, $to);
+MailStats::deliveryRate($from, $to);
+MailStats::dailyStats($from, $to);
 ```
 
 ## Testing
