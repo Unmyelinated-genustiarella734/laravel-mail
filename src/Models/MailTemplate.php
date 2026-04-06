@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\URL;
 use JeffersonGoncalves\LaravelMail\Observers\MailTemplateObserver;
 
 /**
@@ -24,6 +25,7 @@ use JeffersonGoncalves\LaravelMail\Observers\MailTemplateObserver;
  * @property bool $is_active
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property-read string|null $preview_url
  * @property-read Collection<int, MailTemplateVersion> $versions
  * @property-read Collection<int, MailLog> $logs
  */
@@ -80,6 +82,19 @@ class MailTemplate extends Model
             config('laravel-mail.models.mail_log', MailLog::class),
             'mail_template_id'
         );
+    }
+
+    public function getPreviewUrlAttribute(): ?string
+    {
+        if (! config('laravel-mail.preview.enabled', false)) {
+            return null;
+        }
+
+        if (config('laravel-mail.preview.signed_urls', true)) {
+            return URL::signedRoute('laravel-mail.preview.template', ['mailTemplate' => $this->id]);
+        }
+
+        return route('laravel-mail.preview.template', ['mailTemplate' => $this->id]);
     }
 
     public function getSubjectForLocale(?string $locale = null): string

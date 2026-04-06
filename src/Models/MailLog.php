@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\URL;
 use JeffersonGoncalves\LaravelMail\Enums\MailStatus;
 
 /**
@@ -34,6 +35,7 @@ use JeffersonGoncalves\LaravelMail\Enums\MailStatus;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Model|null $mailable
+ * @property-read string|null $preview_url
  * @property-read MailTemplate|null $template
  * @property-read Collection<int, MailTrackingEvent> $trackingEvents
  */
@@ -99,6 +101,19 @@ class MailLog extends Model
             config('laravel-mail.models.mail_template', MailTemplate::class),
             'mail_template_id'
         );
+    }
+
+    public function getPreviewUrlAttribute(): ?string
+    {
+        if (! config('laravel-mail.preview.enabled', false)) {
+            return null;
+        }
+
+        if (config('laravel-mail.preview.signed_urls', true)) {
+            return URL::signedRoute('laravel-mail.preview.mail-log', ['mailLog' => $this->id]);
+        }
+
+        return route('laravel-mail.preview.mail-log', ['mailLog' => $this->id]);
     }
 
     public function trackingEvents(): HasMany

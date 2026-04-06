@@ -1,6 +1,7 @@
 <?php
 
 use JeffersonGoncalves\LaravelMail\Models\MailLog;
+use JeffersonGoncalves\LaravelMail\Models\MailSuppression;
 use JeffersonGoncalves\LaravelMail\Models\MailTemplate;
 use JeffersonGoncalves\LaravelMail\Models\MailTemplateVersion;
 use JeffersonGoncalves\LaravelMail\Models\MailTrackingEvent;
@@ -51,6 +52,22 @@ return [
     'prune' => [
         'enabled' => true,
         'older_than_days' => 30,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Suppression List
+    |--------------------------------------------------------------------------
+    |
+    | Automatically suppress email addresses that hard bounce or complain.
+    | Suppressed addresses will be blocked from receiving future emails.
+    |
+    */
+
+    'suppression' => [
+        'enabled' => env('LARAVEL_MAIL_SUPPRESSION_ENABLED', false),
+        'auto_suppress_hard_bounces' => true,
+        'auto_suppress_complaints' => true,
     ],
 
     /*
@@ -115,6 +132,37 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Retry
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for retrying failed or soft-bounced emails.
+    |
+    */
+
+    'retry' => [
+        'enabled' => env('LARAVEL_MAIL_RETRY_ENABLED', false),
+        'max_attempts' => 3,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Email Preview
+    |--------------------------------------------------------------------------
+    |
+    | Enable browser preview for mail logs and templates.
+    | When signed_urls is enabled, preview links require a valid signature.
+    |
+    */
+
+    'preview' => [
+        'enabled' => env('LARAVEL_MAIL_PREVIEW_ENABLED', false),
+        'route_prefix' => 'mail/preview',
+        'route_middleware' => ['web'],
+        'signed_urls' => true,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Multi-Tenancy
     |--------------------------------------------------------------------------
     |
@@ -145,6 +193,7 @@ return [
             'mail_templates' => 'mail_templates',
             'mail_template_versions' => 'mail_template_versions',
             'mail_tracking_events' => 'mail_tracking_events',
+            'mail_suppressions' => 'mail_suppressions',
         ],
     ],
 
@@ -162,6 +211,7 @@ return [
         'mail_template' => MailTemplate::class,
         'mail_template_version' => MailTemplateVersion::class,
         'mail_tracking_event' => MailTrackingEvent::class,
+        'mail_suppression' => MailSuppression::class,
     ],
 
 ];

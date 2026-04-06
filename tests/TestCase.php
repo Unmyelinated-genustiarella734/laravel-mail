@@ -26,6 +26,7 @@ class TestCase extends Orchestra
 
     public function getEnvironmentSetUp($app): void
     {
+        config()->set('app.key', 'base64:'.base64_encode(random_bytes(32)));
         config()->set('database.default', 'testing');
         config()->set('database.connections.testing', [
             'driver' => 'sqlite',
@@ -43,6 +44,7 @@ class TestCase extends Orchestra
             'create_mail_templates_table',
             'create_mail_template_versions_table',
             'create_mail_tracking_events_table',
+            'create_mail_suppressions_table',
         ];
 
         foreach ($migrations as $migration) {
