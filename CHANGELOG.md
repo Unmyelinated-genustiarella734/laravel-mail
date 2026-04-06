@@ -2,6 +2,44 @@
 
 All notable changes to `laravel-mail` will be documented in this file.
 
+## 1.3.0 - 2026-04-05
+
+### What's Changed
+
+#### New Features
+
+- **Pixel Tracking (Provider-Independent)** — Track email opens and clicks without relying on email provider webhooks. Works with any mailer including plain SMTP.
+  - Injects a 1x1 transparent GIF pixel for open tracking
+  - Rewrites links for click tracking with 302 redirect
+  - HMAC-SHA256 signed URLs to prevent forgery
+  - Validates redirect URLs to block unsafe schemes (javascript:, data:, etc.)
+  - Coexists with existing webhook-based tracking (events registered with `provider=pixel`)
+  
+
+#### New Configuration
+
+```env
+LARAVEL_MAIL_PIXEL_OPEN_TRACKING=true
+LARAVEL_MAIL_PIXEL_CLICK_TRACKING=true
+LARAVEL_MAIL_PIXEL_SIGNING_KEY=  # optional, defaults to APP_KEY
+
+```
+#### New Files
+
+- `Services/PixelTracker` — Pixel injection, link rewriting, HMAC signing
+- `Services/TrackingEventRecorder` — Shared event recording service (refactored from AbstractWebhookHandler)
+- `Http/Controllers/TrackingController` — Serves GIF pixel and click redirects
+- `Listeners/InjectTrackingPixel` — MessageSending listener
+- `routes/tracking.php` — Pixel and click routes
+
+#### Internal Changes
+
+- Added `TrackingProvider::Pixel` enum case
+- Refactored `AbstractWebhookHandler` to use shared `TrackingEventRecorder` service
+- Updated README, Boost guidelines, and Boost skill documentation
+
+**Full Changelog**: https://github.com/jeffersongoncalves/laravel-mail/compare/1.2.0...1.3.0
+
 ## 1.2.0 - 2026-04-05
 
 ### What's New
