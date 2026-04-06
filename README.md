@@ -11,7 +11,7 @@
 [![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/jeffersongoncalves/laravel-mail/fix-php-code-style-issues.yml?branch=master&label=code%20style&style=flat-square)](https://github.com/jeffersongoncalves/laravel-mail/actions?query=workflow%3A"Fix+PHP+code+styling"+branch%3Amaster)
 [![Total Downloads](https://img.shields.io/packagist/dt/jeffersongoncalves/laravel-mail.svg?style=flat-square)](https://packagist.org/packages/jeffersongoncalves/laravel-mail)
 
-Complete email management for Laravel: logging, database templates with translation (spatie/laravel-translatable), delivery tracking via webhooks (SES, SendGrid, Postmark, Mailgun, Resend), suppression list, inline CSS, List-Unsubscribe headers, browser preview, statistics, notification channel, retry, attachment storage, and analytics.
+Complete email management for Laravel: logging, database templates with translation (spatie/laravel-translatable), delivery tracking via webhooks (SES, SendGrid, Postmark, Mailgun, Resend), pixel tracking (provider-independent open & click tracking), suppression list, inline CSS, List-Unsubscribe headers, browser preview, statistics, notification channel, retry, attachment storage, and analytics.
 
 ## Features
 
@@ -19,6 +19,7 @@ Complete email management for Laravel: logging, database templates with translat
 - **Database Templates** — Store email templates with Blade rendering and multi-locale translation via `spatie/laravel-translatable`
 - **Template Versioning** — Automatic version history on every content change
 - **Delivery Tracking** — Webhook handlers for 5 providers (SES, SendGrid, Postmark, Mailgun, Resend) with HMAC validation
+- **Pixel Tracking** — Provider-independent open and click tracking via injected 1x1 transparent pixel and link rewriting (works with any mailer including plain SMTP)
 - **Webhook Idempotency** — Duplicate webhook deliveries are detected and ignored via `provider_event_id`
 - **Tracking Events** — Laravel events dispatched on delivery, bounce, complaint, open, click, and deferral
 - **Suppression List** — Auto-suppress hard bounces and complaints, block sending to suppressed addresses
@@ -336,6 +337,58 @@ Each provider uses its own authentication method:
 - **Resend** — Svix HMAC SHA256 signature
 
 When no signing secret is configured, validation is skipped (useful for development).
+
+## Pixel Tracking (Provider-Independent)
+
+Track email opens and clicks without relying on email provider webhooks. Works with any mailer including plain SMTP. The package injects a 1x1 transparent GIF pixel for open tracking and rewrites links for click tracking.
+
+### Enable Pixel Tracking
+
+```env
+LARAVEL_MAIL_PIXEL_OPEN_TRACKING=true
+LARAVEL_MAIL_PIXEL_CLICK_TRACKING=true
+```
+
+```php
+// config/laravel-mail.php
+'tracking' => [
+    'pixel' => [
+        'open_tracking' => true,   // Inject tracking pixel in emails
+        'click_tracking' => true,  // Rewrite links for click tracking
+        'route_prefix' => 'mail/t',
+        'route_middleware' => [],
+        'signing_key' => env('LARAVEL_MAIL_PIXEL_SIGNING_KEY'), // null = uses APP_KEY
+    ],
+],
+```
+
+### How It Works
+
+1. When an email is sent, the `InjectTrackingPixel` listener modifies the HTML body:
+   - **Open tracking**: Injects a `<img>` tag with a 1x1 transparent GIF before `</body>`
+   - **Click tracking**: Rewrites all `<a href="...">` links to route through the package's click endpoint
+2. When the recipient opens the email, the pixel image is loaded from your server, registering an `opened` event
+3. When the recipient clicks a link, it passes through your server (registering a `clicked` event) and redirects to the original URL
+
+### Tracking URLs
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /mail/t/pixel/{id}?sig={hmac}` | Serves 1x1 transparent GIF, records open event |
+| `GET /mail/t/click/{id}?url={base64}&sig={hmac}` | Records click event, redirects to original URL |
+
+All URLs are signed with HMAC-SHA256 to prevent forgery. Invalid signatures are silently ignored for pixel requests (still serves the GIF) and rejected with 403 for click requests.
+
+### Security
+
+- URLs are signed with HMAC-SHA256 using the configured `signing_key` (or `APP_KEY` as fallback)
+- Click redirects validate that the target URL uses `http` or `https` schemes (blocks `javascript:`, `data:`, etc.)
+- `mailto:`, `tel:`, `sms:`, and anchor (`#`) links are not rewritten
+- Pixel responses include `Cache-Control: no-store` to prevent caching
+
+### Coexistence with Provider Webhooks
+
+Pixel tracking works alongside webhook-based tracking. Both register events in the `mail_tracking_events` table with different providers (`pixel` vs `ses`/`sendgrid`/etc.), and both dispatch the same Laravel events (`MailOpened`, `MailClicked`).
 
 ## Suppression List
 

@@ -9,4 +9,5 @@ enum TrackingProvider: string
     case Postmark = 'postmark';
     case Mailgun = 'mailgun';
     case Resend = 'resend';
+    case Pixel = 'pixel';
 }

@@ -1,13 +1,13 @@
 ## Laravel Mail
 
-Complete email management package: logging, database templates (spatie/laravel-translatable), delivery tracking, webhook idempotency, suppression, inline CSS, List-Unsubscribe headers, preview, statistics, notifications, retry, attachment storage, and CLI commands.
+Complete email management package: logging, database templates (spatie/laravel-translatable), delivery tracking, webhook idempotency, pixel tracking (provider-independent open & click), suppression, inline CSS, List-Unsubscribe headers, preview, statistics, notifications, retry, attachment storage, and CLI commands.
 
 ### Models
 
 - **MailLog** — Logged email record (UUID PK, status enum, polymorphic `mailable`, json fields for addresses/headers/attachments/metadata, `mail_template_id` auto-linked)
 - **MailTemplate** — Database email template (key unique, `HasTranslations` via spatie/laravel-translatable for subject/html_body/text_body, variables json, layout, auto-versioning via observer)
 - **MailTemplateVersion** — Automatic snapshot on content changes (version_number auto-incremented)
-- **MailTrackingEvent** — Webhook delivery event (type enum: delivered/bounced/opened/clicked/complained/deferred, provider enum, `provider_event_id` for idempotency)
+- **MailTrackingEvent** — Delivery/tracking event (type enum: delivered/bounced/opened/clicked/complained/deferred, provider enum: ses/sendgrid/postmark/mailgun/resend/pixel, `provider_event_id` for idempotency)
 - **MailSuppression** — Blocked email address (reason enum: hard_bounce/complaint/manual)
 
 ### Email Logging
@@ -70,6 +70,18 @@ Webhook handlers for SES, SendGrid, Postmark, Mailgun, and Resend. Routes: `POST
 **Idempotency:** Each handler extracts a `provider_event_id` from the payload. Duplicate webhooks are detected via `firstOrCreate` and ignored — no duplicate events, no duplicate status updates.
 
 Laravel events dispatched: `MailDelivered`, `MailBounced`, `MailComplained`, `MailOpened`, `MailClicked`, `MailDeferred`.
+
+### Pixel Tracking (Provider-Independent)
+
+Track opens and clicks without provider webhooks. Works with any mailer including plain SMTP. Injects a 1x1 transparent GIF pixel for open tracking and rewrites links for click tracking.
+
+Routes: `GET /mail/t/pixel/{id}?sig=...` (open), `GET /mail/t/click/{id}?url=...&sig=...` (click). URLs are HMAC-SHA256 signed.
+
+Key classes: `Services\PixelTracker`, `Http\Controllers\TrackingController`, `Listeners\InjectTrackingPixel`, `Services\TrackingEventRecorder`.
+
+Config: `laravel-mail.tracking.pixel.open_tracking`, `click_tracking`, `route_prefix`, `signing_key`.
+
+Coexists with webhook tracking — events registered with `provider=pixel` in `mail_tracking_events`.
 
 ### Suppression List
 

@@ -16,6 +16,7 @@ use JeffersonGoncalves\LaravelMail\Events\MailBounced;
 use JeffersonGoncalves\LaravelMail\Events\MailComplained;
 use JeffersonGoncalves\LaravelMail\Listeners\AddToSuppressionList;
 use JeffersonGoncalves\LaravelMail\Listeners\CheckSuppression;
+use JeffersonGoncalves\LaravelMail\Listeners\InjectTrackingPixel;
 use JeffersonGoncalves\LaravelMail\Listeners\LogSendingMessage;
 use JeffersonGoncalves\LaravelMail\Listeners\LogSentMessage;
 use JeffersonGoncalves\LaravelMail\Services\MailStats;
@@ -68,6 +69,13 @@ class LaravelMailServiceProvider extends PackageServiceProvider
             Event::listen(MessageSent::class, LogSentMessage::class);
         }
 
+        $pixelOpenTracking = config('laravel-mail.tracking.pixel.open_tracking', false);
+        $pixelClickTracking = config('laravel-mail.tracking.pixel.click_tracking', false);
+
+        if ($pixelOpenTracking || $pixelClickTracking) {
+            Event::listen(MessageSending::class, InjectTrackingPixel::class);
+        }
+
         if (config('laravel-mail.suppression.enabled', false)) {
             Event::listen(MailBounced::class, AddToSuppressionList::class);
             Event::listen(MailComplained::class, AddToSuppressionList::class);
@@ -75,6 +83,7 @@ class LaravelMailServiceProvider extends PackageServiceProvider
 
         $this->registerWebhookRoutes();
         $this->registerPreviewRoutes();
+        $this->registerTrackingRoutes();
     }
 
     protected function registerWebhookRoutes(): void
@@ -89,5 +98,12 @@ class LaravelMailServiceProvider extends PackageServiceProvider
         Route::prefix(config('laravel-mail.preview.route_prefix', 'mail/preview'))
             ->middleware(config('laravel-mail.preview.route_middleware', ['web']))
             ->group(__DIR__.'/../routes/preview.php');
+    }
+
+    protected function registerTrackingRoutes(): void
+    {
+        Route::prefix(config('laravel-mail.tracking.pixel.route_prefix', 'mail/t'))
+            ->middleware(config('laravel-mail.tracking.pixel.route_middleware', []))
+            ->group(__DIR__.'/../routes/tracking.php');
     }
 }

@@ -123,6 +123,30 @@ return [
                 'signing_secret' => env('LARAVEL_MAIL_RESEND_SIGNING_SECRET'),
             ],
         ],
+
+        /*
+        |--------------------------------------------------------------------------
+        | Pixel Tracking (Provider-Independent)
+        |--------------------------------------------------------------------------
+        |
+        | Track email opens and clicks without relying on email provider webhooks.
+        | Injects a 1x1 transparent pixel for open tracking and rewrites links
+        | for click tracking. Works with any mailer including plain SMTP.
+        |
+        */
+
+        'pixel' => [
+            'open_tracking' => env('LARAVEL_MAIL_PIXEL_OPEN_TRACKING', false),
+            'click_tracking' => env('LARAVEL_MAIL_PIXEL_CLICK_TRACKING', false),
+            'route_prefix' => 'mail/t',
+            'route_middleware' => [],
+
+            /*
+            | HMAC signing key for tracking URLs.
+            | When null, the application key (APP_KEY) is used.
+            */
+            'signing_key' => env('LARAVEL_MAIL_PIXEL_SIGNING_KEY'),
+        ],
     ],
 
     /*

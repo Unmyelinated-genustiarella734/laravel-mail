@@ -1,6 +1,6 @@
 ---
 name: laravel-mail-development
-description: Build and work with Laravel Mail features including email logging, database templates (spatie/laravel-translatable), webhook tracking with idempotency, suppression lists, inline CSS, List-Unsubscribe headers, browser preview, statistics, notification channels, retry, attachment storage, prune policies, and CLI commands.
+description: Build and work with Laravel Mail features including email logging, database templates (spatie/laravel-translatable), webhook tracking with idempotency, pixel tracking (provider-independent open & click tracking), suppression lists, inline CSS, List-Unsubscribe headers, browser preview, statistics, notification channels, retry, attachment storage, prune policies, and CLI commands.
 ---
 
 # Laravel Mail Development
@@ -11,6 +11,7 @@ Use this skill when:
 - Setting up email logging and configuring what gets stored
 - Creating database email templates with multi-locale support (spatie/laravel-translatable)
 - Configuring webhook delivery tracking for email providers
+- Setting up pixel tracking (provider-independent open & click tracking)
 - Implementing suppression lists for bounced/complained addresses
 - Setting up browser preview for sent emails and templates
 - Querying email statistics and building dashboards
@@ -70,7 +71,7 @@ timestamp created_at
 uuid id PK
 foreignUuid mail_log_id (cascade delete)
 string type (delivered|bounced|opened|clicked|complained|deferred)
-string provider (ses|sendgrid|postmark|mailgun|resend)
+string provider (ses|sendgrid|postmark|mailgun|resend|pixel)
 string provider_event_id (nullable, indexed)  -- idempotency key
 json payload
 string recipient, url, bounce_type
@@ -211,6 +212,54 @@ Each webhook handler extracts a `provider_event_id`:
 
 Duplicate webhooks are detected via `firstOrCreate` on `provider_event_id`. When a duplicate is found, no tracking event is created, no status update, no Laravel event dispatched.
 
+## Pixel Tracking (Provider-Independent)
+
+Track opens and clicks without provider webhooks. Works with any mailer including plain SMTP.
+
+```php
+// config/laravel-mail.php
+'tracking' => [
+    'pixel' => [
+        'open_tracking' => env('LARAVEL_MAIL_PIXEL_OPEN_TRACKING', false),
+        'click_tracking' => env('LARAVEL_MAIL_PIXEL_CLICK_TRACKING', false),
+        'route_prefix' => 'mail/t',
+        'route_middleware' => [],
+        'signing_key' => env('LARAVEL_MAIL_PIXEL_SIGNING_KEY'), // null = uses APP_KEY
+    ],
+],
+```
+
+### How It Works
+
+1. `InjectTrackingPixel` listener on `MessageSending` modifies HTML body
+2. Open tracking: Injects `<img>` 1x1 transparent GIF before `</body>`
+3. Click tracking: Rewrites `<a href>` links through `/mail/t/click/{id}` endpoint
+4. Pixel loads → `MailTrackingEvent` recorded with `provider=pixel`, `MailOpened` dispatched
+5. Link clicked → `MailTrackingEvent` recorded, `MailClicked` dispatched, 302 redirect to original URL
+
+### Key Classes
+
+- `Services\PixelTracker` — Injects pixel, rewrites links, generates/verifies HMAC-signed URLs
+- `Http\Controllers\TrackingController` — Serves GIF pixel, handles click redirects
+- `Listeners\InjectTrackingPixel` — Listener on `MessageSending` that calls `PixelTracker`
+- `Services\TrackingEventRecorder` — Shared service for recording events (used by both webhooks and pixel)
+
+### Security
+
+- HMAC-SHA256 signed URLs prevent forgery
+- Click redirects validate URL scheme (blocks `javascript:`, `data:`, `vbscript:`)
+- `mailto:`, `tel:`, `sms:`, `#anchor` links are never rewritten
+- Pixel responses: `Cache-Control: no-store` prevents caching
+
+### Routes
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /mail/t/pixel/{id}?sig=...` | Serve 1x1 GIF, record open |
+| `GET /mail/t/click/{id}?url=...&sig=...` | Record click, redirect |
+
+Coexists with webhook tracking — both register in `mail_tracking_events` with different `provider` values.
+
 ## Previewing Templates
 
 ```php
@@ -311,6 +360,10 @@ php artisan mail:send-test welcome user@example.com --data='{"name":"Alice"}'
 | `prune.older_than_days` | `30` | Default days to keep logs |
 | `prune.policies` | `null` | Per-status retention: `['delivered' => 30, 'bounced' => 90]` |
 | `tracking.enabled` | `false` | Enable webhook tracking |
+| `tracking.pixel.open_tracking` | `false` | Inject tracking pixel for opens |
+| `tracking.pixel.click_tracking` | `false` | Rewrite links for click tracking |
+| `tracking.pixel.route_prefix` | `'mail/t'` | URL prefix for pixel routes |
+| `tracking.pixel.signing_key` | `null` | HMAC key (null = APP_KEY) |
 | `suppression.enabled` | `false` | Enable suppression list |
 | `suppression.auto_suppress_hard_bounces` | `true` | Auto-suppress hard bounces |
 | `suppression.auto_suppress_complaints` | `true` | Auto-suppress complaints |
