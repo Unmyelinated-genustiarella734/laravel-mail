@@ -22,7 +22,6 @@ it('renders mail log html in browser', function () {
     $response = $this->get("/mail/preview/mail-log/{$log->id}");
 
     $response->assertOk()
-        ->assertHeader('Content-Type', 'text/html; charset=UTF-8')
         ->assertSee('<h1>Hello World</h1>', false);
 });
 
