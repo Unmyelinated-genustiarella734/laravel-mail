@@ -1,6 +1,6 @@
 <div class="filament-hidden">
 
-![Laravel Mail](https://raw.githubusercontent.com/jeffersongoncalves/laravel-mail/master/art/jeffersongoncalves-laravel-mail.jpg)
+![Laravel Mail](https://raw.githubusercontent.com/jeffersongoncalves/laravel-mail/master/art/jeffersongoncalves-laravel-mail.png)
 
 </div>
 
